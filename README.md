@@ -1,6 +1,23 @@
 # Shai-Hulud Scanner
 
+[![Go](https://github.com/srps/sha1-hulud/actions/workflows/ci.yml/badge.svg)](https://github.com/srps/sha1-hulud/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A cross-platform security scanner to detect Shai-Hulud 2.0 malware in npm packages and GitHub repositories.
+
+## Table of Contents
+
+- [What is Shai-Hulud 2.0?](#what-is-shai-hulud-20)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+- [What It Scans](#what-it-scans)
+- [Example Output](#example-output)
+- [CI/CD Integration](#cicd-integration)
+- [Remediation Steps](#remediation-steps)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## What is Shai-Hulud 2.0?
 
@@ -26,6 +43,21 @@ Shai-Hulud 2.0 is a supply-chain attack targeting npm packages. It:
 - ✅ Single binary - no dependencies required
 - ✅ Optimized parallel processing for maximum performance
 - ✅ Supports Wiz IOCs format (handles version ranges with `||` separators)
+- ✅ Scans global npm/pnpm packages (per Node.js environment)
+- ✅ Scans Bun package cache
+
+## Quick Start
+
+```bash
+# Download and run (Linux/macOS)
+curl -L https://github.com/srps/sha1-hulud/releases/latest/download/sha1-hulud-scanner-linux-amd64 -o sha1-hulud-scanner
+chmod +x sha1-hulud-scanner
+./sha1-hulud-scanner -download
+
+# Or build from source
+go build -o sha1-hulud-scanner scan_malware.go
+./sha1-hulud-scanner -download
+```
 
 ## Installation
 
@@ -36,13 +68,26 @@ Download the latest release from the [Releases](https://github.com/srps/sha1-hul
 **Quick install (Linux/macOS):**
 
 ```bash
-# Download latest release
+# Using curl (recommended)
+curl -L https://github.com/srps/sha1-hulud/releases/latest/download/sha1-hulud-scanner-linux-amd64 -o sha1-hulud-scanner
+chmod +x sha1-hulud-scanner
+./sha1-hulud-scanner -download
+
+# Or using wget with specific version
 VERSION="v1.0.0"  # Update with latest version
 PLATFORM="linux-amd64"  # or darwin-amd64, darwin-arm64, windows-amd64.exe
 
 wget https://github.com/srps/sha1-hulud/releases/download/${VERSION}/sha1-hulud-scanner-${PLATFORM}
 chmod +x sha1-hulud-scanner-${PLATFORM}
 ./sha1-hulud-scanner-${PLATFORM} -download
+```
+
+**Windows:**
+
+```powershell
+# Download latest release
+Invoke-WebRequest -Uri "https://github.com/srps/sha1-hulud/releases/latest/download/sha1-hulud-scanner-windows-amd64.exe" -OutFile "sha1-hulud-scanner.exe"
+.\sha1-hulud-scanner.exe -download
 ```
 
 **Verify checksums:**
@@ -125,20 +170,46 @@ The scanner automatically handles:
 
 ## What It Scans
 
-### 1. Compromised npm Packages
+The scanner performs comprehensive checks across multiple locations:
 
-Checks installed packages against the known list of compromised package@version combinations. Uses the latest IOCs from [Wiz Research](https://github.com/wiz-sec-public/wiz-research-iocs) when using `-download` flag.
+### 1. Local `node_modules` Directories
 
-### 2. Attack Indicators
+Scans all `node_modules` directories found in the specified path (or home directory by default). Checks installed packages against the known list of compromised package@version combinations.
+
+### 2. Global npm Packages
+
+Scans globally installed npm packages across all detected Node.js environments:
+
+- System Node.js
+- nvm installations
+- fnm installations
+- asdf installations
+- mise installations
+
+### 3. Global pnpm Packages
+
+Scans globally installed pnpm packages for each Node.js environment.
+
+### 4. Bun Package Cache
+
+Scans Bun's package cache directory (`~/.bun/install/cache` or `$BUN_INSTALL_CACHE_DIR`) for compromised packages.
+
+### 5. Attack Indicators
+
+Detects suspicious files and patterns:
 
 - **Payload files**: `setup_bun.js`, `bun_environment.js`, `actionsSecrets.json`
 - **Exfiltration files**: `cloud.json`, `contents.json`, `environment.json`, `truffleSecrets.json`
 - **Suspicious preinstall scripts**: Patterns matching Shai-Hulud execution methods
 
-### 3. GitHub Workflows
+### 6. GitHub Workflows
+
+Scans for malicious GitHub workflow files:
 
 - `discussion.yaml` - Backdoor workflow that executes on self-hosted runners
 - `formatter_*.yml` - Secret exfiltration workflows
+
+**Note**: Uses the latest IOCs from [Wiz Research](https://github.com/wiz-sec-public/wiz-research-iocs) when using `-download` flag.
 
 ## Output
 
@@ -149,6 +220,70 @@ The scanner provides:
 - Actionable remediation steps
 
 Exit code `1` indicates findings, `0` indicates clean scan.
+
+### Using in Scripts
+
+The scanner's exit codes make it easy to integrate into scripts and CI/CD pipelines:
+
+```bash
+#!/bin/bash
+if ./sha1-hulud-scanner -download; then
+    echo "✅ Scan passed - no threats detected"
+else
+    echo "❌ Scan failed - threats detected!"
+    exit 1
+fi
+```
+
+## Example Output
+
+**Clean scan:**
+
+```
+📥 Downloading latest Shai-Hulud IOCs from Wiz Research...
+✅ Downloaded IOCs to: /tmp/shai-hulud-iocs-1234567890.csv
+📋 Loaded 1089 compromised package versions
+🔍 Scanning for sha1-hulud malicious packages...
+Scanning under: /Users/username
+Found 15 node_modules directories
+Using 8 parallel workers
+
+🔍 Scanning global packages and Bun cache...
+  Detected 2 Node.js environment(s)
+
+🔍 Scanning for malicious GitHub workflows...
+
+============================================================
+SHA1-HULUD MALWARE SCAN REPORT
+============================================================
+
+✅ No sha1-hulud compromised packages detected
+
+💡 Stay vigilant: New compromised packages may still be discovered.
+```
+
+**Compromised packages found:**
+
+```
+============================================================
+SHA1-HULUD MALWARE SCAN REPORT
+============================================================
+
+🔴 COMPROMISED PACKAGES DETECTED:
+
+  Package: @zapier/platform-cli@18.0.4
+    └─ /path/to/project/node_modules/@zapier/platform-cli
+    └─ npm global (nvm@18.17.0)
+
+⚠️  ATTACK INDICATORS FOUND:
+  • Suspicious file 'setup_bun.js' found in malicious-pkg@1.0.0 at /path/to/node_modules/malicious-pkg
+  • Suspicious GitHub workflow file: .github/workflows/discussion.yaml (potential backdoor)
+
+============================================================
+🚨 IMMEDIATE ACTIONS REQUIRED:
+============================================================
+[... remediation steps ...]
+```
 
 ## Remediation Steps
 
@@ -174,6 +309,85 @@ If malware is detected:
    - Reinstall from clean versions
    - Update to versions published before Nov 21, 2025
 
+## CI/CD Integration
+
+### GitHub Actions
+
+Add security scanning to your CI/CD pipeline:
+
+```yaml
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily scan
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download scanner
+        run: |
+          curl -L https://github.com/srps/sha1-hulud/releases/latest/download/sha1-hulud-scanner-linux-amd64 -o scanner
+          chmod +x scanner
+      
+      - name: Run security scan
+        run: ./scanner -download -root ${{ github.workspace }}
+```
+
+### GitLab CI
+
+```yaml
+security-scan:
+  image: golang:1.22
+  script:
+    - curl -L https://github.com/srps/sha1-hulud/releases/latest/download/sha1-hulud-scanner-linux-amd64 -o scanner
+    - chmod +x scanner
+    - ./scanner -download -root $CI_PROJECT_DIR
+  allow_failure: false
+```
+
+## Performance
+
+Typical scan performance on a development machine:
+
+- **~100 node_modules directories**: 2-5 seconds
+- **~1000 node_modules directories**: 10-30 seconds
+- **Large enterprise scan**: 1-3 minutes
+
+Performance scales with:
+
+- Number of CPU cores (parallel scanning)
+- Storage type (SSD vs HDD)
+- Number of `node_modules` directories
+
+## Troubleshooting
+
+### No node_modules directories found
+
+- Ensure you have read permissions to the directory being scanned
+- Check if `node_modules` directories exist in the specified path
+- Try scanning a specific project directory: `-root /path/to/project`
+
+### Permission errors
+
+The scanner automatically skips directories it cannot access and continues scanning. You'll see warnings but scanning will continue.
+
+### Global packages not detected
+
+- Ensure Node.js is installed and in your PATH
+- For nvm/fnm/asdf: Ensure the version manager is properly configured
+- The scanner detects multiple Node.js environments automatically
+
+### Download fails
+
+- Check your internet connection
+- Verify GitHub is accessible
+- Use `-csv` flag with a local CSV file as fallback
+
 ## Why Go?
 
 Go is an excellent choice for this utility because:
@@ -196,13 +410,24 @@ Go is an excellent choice for this utility because:
 Contributions welcome! Areas for improvement:
 
 - [ ] JSON output format option
-- [ ] Download CSV automatically from Wiz IOCs
-- [ ] CI/CD integration (GitHub Actions, GitLab CI)
 - [ ] Docker image for containerized scanning
-- [ ] Integration with package managers (npm audit, etc.)
+- [ ] **Package Manager Integration** (see [PACKAGE_MANAGER_INTEGRATION.md](PACKAGE_MANAGER_INTEGRATION.md)):
+  - [ ] `package.json` analysis (check declared dependencies)
+  - [ ] Lock file analysis (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`)
+  - [ ] Transitive dependency checking
+  - [ ] Version range resolution (^, ~, etc.)
+  - [ ] Yarn support (lock files, workspaces)
+  - [ ] npm audit integration
+  - [ ] Fix suggestions (automatic remediation)
 - [ ] Windows registry scanning for npm global packages
-- [ ] Bun cache scanning
-- [ ] Yarn/pnpm specific checks
+- [ ] Progress indicators for long scans
+- [ ] Caching scan results
+
+**Already implemented:**
+
+- ✅ CI/CD integration (GitHub Actions)
+- ✅ Bun cache scanning
+- ✅ Global npm/pnpm package scanning
 
 ## License
 
