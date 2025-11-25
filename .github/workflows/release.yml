@@ -47,7 +47,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.25'
 
       - name: Get dependencies
         run: go mod download
@@ -77,7 +77,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Determine version
         id: version
@@ -91,38 +91,33 @@ jobs:
           echo "Version: $VERSION"
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: ./artifacts
+          merge-multiple: true
 
-      - name: Flatten artifacts and create checksums
+      - name: Create checksums
         run: |
           cd artifacts
-          # Find all binary files and move them to the root, handling directory conflicts
-          find . -mindepth 2 -type f | while read -r file; do
-            filename=$(basename "$file")
-            # Remove any existing file or directory with the same name
-            rm -rf "./$filename"
-            # Move the file to the root
-            mv "$file" "./$filename"
-          done
-          # Remove empty subdirectories
-          find . -mindepth 1 -type d -empty -delete
-          # Create checksums for all files except sha256sums.txt
+          # List all files for verification
+          echo "=== Files in artifacts directory ==="
+          ls -lh
+          echo ""
+          # Create checksums for all binary files
           for file in *; do
             if [ "$file" != "sha256sums.txt" ] && [ -f "$file" ]; then
               sha256sum "$file" >> sha256sums.txt
             fi
           done
-          # Display checksums and file list for verification
-          echo "Created checksums:"
+          # Display checksums for verification
+          echo "=== Created checksums ==="
           cat sha256sums.txt
           echo ""
-          echo "Files in artifacts directory:"
+          echo "=== Final file list ==="
           ls -lh
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
