@@ -43,6 +43,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history and tags for proper tag handling
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -78,6 +80,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Fetch all history and tags for proper tag handling
 
       - name: Determine version
         id: version
@@ -119,6 +123,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          token: ${{ github.token }}
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
           body: |
