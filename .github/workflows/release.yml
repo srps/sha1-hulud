@@ -1,0 +1,148 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build Binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases
+    
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            binary_name: sha1-hulud-scanner-linux-amd64
+          - goos: linux
+            goarch: arm64
+            binary_name: sha1-hulud-scanner-linux-arm64
+          - goos: darwin
+            goarch: amd64
+            binary_name: sha1-hulud-scanner-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            binary_name: sha1-hulud-scanner-darwin-arm64
+          - goos: windows
+            goarch: amd64
+            binary_name: sha1-hulud-scanner-windows-amd64.exe
+          - goos: windows
+            goarch: arm64
+            binary_name: sha1-hulud-scanner-windows-arm64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Get dependencies
+        run: go mod download
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w" -o ${{ matrix.binary_name }} scan_malware.go
+          chmod +x ${{ matrix.binary_name }} || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: ${{ matrix.binary_name }}
+          retention-days: 30
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create checksums
+        run: |
+          cd artifacts
+          sha256sum * > sha256sums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## Shai-Hulud Scanner ${{ steps.version.outputs.version }}
+
+            ### Downloads
+
+            **Linux:**
+            - [sha1-hulud-scanner-linux-amd64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha1-hulud-scanner-linux-amd64)
+            - [sha1-hulud-scanner-linux-arm64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha1-hulud-scanner-linux-arm64)
+
+            **macOS:**
+            - [sha1-hulud-scanner-darwin-amd64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha1-hulud-scanner-darwin-amd64)
+            - [sha1-hulud-scanner-darwin-arm64](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha1-hulud-scanner-darwin-arm64)
+
+            **Windows:**
+            - [sha1-hulud-scanner-windows-amd64.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha1-hulud-scanner-windows-amd64.exe)
+            - [sha1-hulud-scanner-windows-arm64.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha1-hulud-scanner-windows-arm64.exe)
+
+            ### Installation
+
+            ```bash
+            # Download and make executable (Linux/macOS)
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha1-hulud-scanner-linux-amd64
+            chmod +x sha1-hulud-scanner-linux-amd64
+            ./sha1-hulud-scanner-linux-amd64 -download
+            ```
+
+            ### Verify Checksums
+
+            ```bash
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha256sums.txt
+            sha256sum -c sha256sums.txt
+            ```
+
+            ### Changes
+
+            See [CHANGELOG.md](CHANGELOG.md) for details.
+          files: |
+            artifacts/*
+          draft: false
+          prerelease: false
+
