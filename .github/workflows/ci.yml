@@ -18,7 +18,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.25'
 
       - name: Get dependencies
         run: go mod download
@@ -33,6 +33,60 @@ jobs:
         run: |
           ./sha1-hulud-scanner --help || ./sha1-hulud-scanner 2>&1 | head -5
 
+  build:
+    name: Build All Platforms
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            binary_name: sha1-hulud-scanner-linux-amd64
+          - goos: linux
+            goarch: arm64
+            binary_name: sha1-hulud-scanner-linux-arm64
+          - goos: darwin
+            goarch: amd64
+            binary_name: sha1-hulud-scanner-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            binary_name: sha1-hulud-scanner-darwin-arm64
+          - goos: windows
+            goarch: amd64
+            binary_name: sha1-hulud-scanner-windows-amd64.exe
+          - goos: windows
+            goarch: arm64
+            binary_name: sha1-hulud-scanner-windows-arm64.exe
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Get dependencies
+        run: go mod download
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w" -o ${{ matrix.binary_name }} scan_malware.go
+          echo "✅ Built ${{ matrix.binary_name }}"
+          ls -lh ${{ matrix.binary_name }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: ${{ matrix.binary_name }}
+          retention-days: 7
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -44,7 +98,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.25'
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
