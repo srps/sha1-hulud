@@ -95,10 +95,25 @@ jobs:
         with:
           path: ./artifacts
 
-      - name: Create checksums
+      - name: Flatten artifacts and create checksums
         run: |
           cd artifacts
-          sha256sum * > sha256sums.txt
+          # Find all binary files and move them to the root
+          find . -mindepth 2 -type f -exec mv {} . \;
+          # Remove empty subdirectories
+          find . -mindepth 1 -type d -empty -delete
+          # Create checksums for all files except sha256sums.txt
+          for file in *; do
+            if [ "$file" != "sha256sums.txt" ]; then
+              sha256sum "$file" >> sha256sums.txt
+            fi
+          done
+          # Display checksums and file list for verification
+          echo "Created checksums:"
+          cat sha256sums.txt
+          echo ""
+          echo "Files in artifacts directory:"
+          ls -lh
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
