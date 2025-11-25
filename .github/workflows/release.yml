@@ -98,13 +98,19 @@ jobs:
       - name: Flatten artifacts and create checksums
         run: |
           cd artifacts
-          # Find all binary files and move them to the root
-          find . -mindepth 2 -type f -exec mv {} . \;
+          # Find all binary files and move them to the root, handling directory conflicts
+          find . -mindepth 2 -type f | while read -r file; do
+            filename=$(basename "$file")
+            # Remove any existing file or directory with the same name
+            rm -rf "./$filename"
+            # Move the file to the root
+            mv "$file" "./$filename"
+          done
           # Remove empty subdirectories
           find . -mindepth 1 -type d -empty -delete
           # Create checksums for all files except sha256sums.txt
           for file in *; do
-            if [ "$file" != "sha256sums.txt" ]; then
+            if [ "$file" != "sha256sums.txt" ] && [ -f "$file" ]; then
               sha256sum "$file" >> sha256sums.txt
             fi
           done
