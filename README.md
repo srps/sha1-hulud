@@ -3,7 +3,7 @@
 [![Go](https://github.com/srps/sha1-hulud/actions/workflows/ci.yml/badge.svg)](https://github.com/srps/sha1-hulud/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A cross-platform security scanner to detect Shai-Hulud 2.0 malware in npm packages and GitHub repositories.
+A cross-platform security scanner to detect Shai-Hulud 2.0 malware in npm packages and GitHub repositories. Available in both Go (single binary) and Node.js versions with full feature parity.
 
 ## Table of Contents
 
@@ -48,6 +48,8 @@ Shai-Hulud 2.0 is a supply-chain attack targeting npm packages. It:
 
 ## Quick Start
 
+**Go version (recommended - single binary, no dependencies):**
+
 ```bash
 # Download and run (Linux/macOS)
 curl -L https://github.com/srps/sha1-hulud/releases/latest/download/sha1-hulud-scanner-linux-amd64 -o sha1-hulud-scanner
@@ -59,13 +61,28 @@ go build -o sha1-hulud-scanner scan_malware.go
 ./sha1-hulud-scanner -download
 ```
 
+**Node.js version (no build required, uses Node.js runtime):**
+
+```bash
+# Clone the repository
+git clone https://github.com/srps/sha1-hulud.git
+cd sha1-hulud
+
+# Run directly (requires Node.js)
+node scan-malware.js -download
+
+# Or make it executable and run
+chmod +x scan-malware.js
+./scan-malware.js -download
+```
+
 ## Installation
 
-### Pre-built Binaries
+### Option 1: Go Binary (Recommended)
 
-Download the latest release from the [Releases](https://github.com/srps/sha1-hulud/releases) page for your platform.
+Download the latest release from the [Releases](https://github.com/srps/sha1-hulud/releases) page for your platform. Single binary, no dependencies required.
 
-**Quick install (Linux/macOS):**
+**Quick install (Linux):**
 
 ```bash
 # Using curl (recommended)
@@ -75,12 +92,29 @@ chmod +x sha1-hulud-scanner
 
 # Or using wget with specific version
 VERSION="v1.0.0"  # Update with latest version
-PLATFORM="linux-amd64"  # or darwin-amd64, darwin-arm64, windows-amd64.exe
-
-wget https://github.com/srps/sha1-hulud/releases/download/${VERSION}/sha1-hulud-scanner-${PLATFORM}
-chmod +x sha1-hulud-scanner-${PLATFORM}
-./sha1-hulud-scanner-${PLATFORM} -download
+wget https://github.com/srps/sha1-hulud/releases/download/${VERSION}/sha1-hulud-scanner-linux-amd64
+chmod +x sha1-hulud-scanner-linux-amd64
+./sha1-hulud-scanner-linux-amd64 -download
 ```
+
+**macOS:**
+
+```bash
+# Download binary (use darwin-arm64 for Apple Silicon, darwin-amd64 for Intel)
+VERSION="v1.0.0"  # Update with latest version
+ARCH="arm64"  # or "amd64" for Intel Macs
+wget https://github.com/srps/sha1-hulud/releases/download/${VERSION}/sha1-hulud-scanner-darwin-${ARCH}
+chmod +x sha1-hulud-scanner-darwin-${ARCH}
+
+# If you see a Gatekeeper warning ("cannot be opened because it is from an unidentified developer"):
+# Option 1: Right-click the file → Open → Click "Open" in the dialog
+# Option 2: Remove quarantine attribute:
+xattr -d com.apple.quarantine sha1-hulud-scanner-darwin-${ARCH} 2>/dev/null || true
+
+./sha1-hulud-scanner-darwin-${ARCH} -download
+```
+
+> **macOS Note:** Binaries are ad-hoc signed to reduce Gatekeeper warnings. For full Gatekeeper compliance (no warnings), an Apple Developer account ($99/year) is required for code signing + notarization. The binary is safe to use - the warning appears because it's not notarized by Apple.
 
 **Windows:**
 
@@ -97,7 +131,22 @@ wget https://github.com/srps/sha1-hulud/releases/download/${VERSION}/sha256sums.
 sha256sum -c sha256sums.txt
 ```
 
-### Build from Source
+### Option 2: Node.js Script
+
+No build required - just clone and run:
+
+```bash
+git clone https://github.com/srps/sha1-hulud.git
+cd sha1-hulud
+node scan-malware.js -download
+```
+
+**Requirements:**
+
+- Node.js 14+ (uses built-in modules only, no npm dependencies)
+- Works on Windows, macOS, and Linux
+
+### Build from Source (Go)
 
 ```bash
 go build -o sha1-hulud-scanner scan_malware.go
@@ -119,6 +168,8 @@ GOOS=windows GOARCH=amd64 go build -o sha1-hulud-scanner-windows-amd64.exe scan_
 
 ## Usage
 
+**Go version:**
+
 ```bash
 # Download latest IOCs and scan (recommended)
 ./sha1-hulud-scanner -download
@@ -135,6 +186,27 @@ GOOS=windows GOARCH=amd64 go build -o sha1-hulud-scanner-windows-amd64.exe scan_
 # Scan entire system (requires appropriate permissions)
 ./sha1-hulud-scanner -download -root /
 ```
+
+**Node.js version:**
+
+```bash
+# Download latest IOCs and scan (recommended)
+node scan-malware.js -download
+
+# Download latest IOCs and scan specific directory
+node scan-malware.js -download -root /path/to/scan
+
+# Use local CSV file
+node scan-malware.js -csv sha1-hulud.csv
+
+# Scan specific directory with local CSV
+node scan-malware.js -csv sha1-hulud.csv -root /path/to/scan
+
+# Scan entire system (requires appropriate permissions)
+node scan-malware.js -download -root /
+```
+
+Both versions support the same command-line flags and provide identical functionality.
 
 ### Flags
 
@@ -225,9 +297,23 @@ Exit code `1` indicates findings, `0` indicates clean scan.
 
 The scanner's exit codes make it easy to integrate into scripts and CI/CD pipelines:
 
+**Go version:**
+
 ```bash
 #!/bin/bash
 if ./sha1-hulud-scanner -download; then
+    echo "✅ Scan passed - no threats detected"
+else
+    echo "❌ Scan failed - threats detected!"
+    exit 1
+fi
+```
+
+**Node.js version:**
+
+```bash
+#!/bin/bash
+if node scan-malware.js -download; then
     echo "✅ Scan passed - no threats detected"
 else
     echo "❌ Scan failed - threats detected!"
@@ -239,7 +325,7 @@ fi
 
 **Clean scan:**
 
-```
+```text
 📥 Downloading latest Shai-Hulud IOCs from Wiz Research...
 ✅ Downloaded IOCs to: /tmp/shai-hulud-iocs-1234567890.csv
 📋 Loaded 1089 compromised package versions
@@ -264,7 +350,7 @@ SHA1-HULUD MALWARE SCAN REPORT
 
 **Compromised packages found:**
 
-```
+```text
 ============================================================
 SHA1-HULUD MALWARE SCAN REPORT
 ============================================================
@@ -315,6 +401,8 @@ If malware is detected:
 
 Add security scanning to your CI/CD pipeline:
 
+**Using Go binary (recommended):**
+
 ```yaml
 name: Security Scan
 
@@ -338,7 +426,33 @@ jobs:
         run: ./scanner -download -root ${{ github.workspace }}
 ```
 
+**Using Node.js version:**
+
+```yaml
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily scan
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Run security scan
+        run: node scan-malware.js -download -root ${{ github.workspace }}
+```
+
 ### GitLab CI
+
+**Using Go binary:**
 
 ```yaml
 security-scan:
@@ -347,6 +461,16 @@ security-scan:
     - curl -L https://github.com/srps/sha1-hulud/releases/latest/download/sha1-hulud-scanner-linux-amd64 -o scanner
     - chmod +x scanner
     - ./scanner -download -root $CI_PROJECT_DIR
+  allow_failure: false
+```
+
+**Using Node.js version:**
+
+```yaml
+security-scan:
+  image: node:20
+  script:
+    - node scan-malware.js -download -root $CI_PROJECT_DIR
   allow_failure: false
 ```
 
@@ -388,22 +512,38 @@ The scanner automatically skips directories it cannot access and continues scann
 - Verify GitHub is accessible
 - Use `-csv` flag with a local CSV file as fallback
 
-## Why Go?
+## Go vs Node.js Versions
 
-Go is an excellent choice for this utility because:
+Both versions provide **full feature parity** - choose based on your environment:
+
+### Go Version (Recommended)
 
 ✅ **Single Binary**: No runtime dependencies, easy distribution  
 ✅ **Cross-platform**: Compile once, run anywhere  
-✅ **Fast**: Efficient filesystem scanning  
+✅ **Fast**: Efficient filesystem scanning with parallel processing  
 ✅ **Low overhead**: Minimal resource usage  
 ✅ **Easy deployment**: Users just download and run  
+✅ **Fast directory traversal**: Uses [fastwalk](https://github.com/charlievieth/fastwalk) for optimized filesystem scanning
 
-### Alternative Approaches Considered
+**Best for:** Production deployments, CI/CD pipelines, users without Node.js installed
 
-- **Node.js**: Native to npm ecosystem, but requires Node runtime
-- **Python**: Cross-platform but requires Python interpreter
-- **Rust**: Similar benefits to Go, but steeper learning curve
-- **Shell scripts**: Simple but less portable across platforms
+### Node.js Version
+
+✅ **No build required**: Just clone and run  
+✅ **Native to npm ecosystem**: Familiar to Node.js developers  
+✅ **Same features**: Full parity with Go version  
+✅ **Easy to modify**: JavaScript is more accessible for contributions  
+✅ **Parallel scanning**: Uses Promise.all with worker pools
+
+**Best for:** Development environments, Node.js projects, quick testing
+
+Both versions:
+
+- Support the same command-line flags
+- Scan the same locations (node_modules, global packages, Bun cache, GitHub workflows)
+- Detect the same attack indicators
+- Provide identical output format
+- Use parallel processing for performance
 
 ## Contributing
 
@@ -428,6 +568,7 @@ Contributions welcome! Areas for improvement:
 - ✅ CI/CD integration (GitHub Actions)
 - ✅ Bun cache scanning
 - ✅ Global npm/pnpm package scanning
+- ✅ Node.js version with full feature parity
 
 ## License
 
