@@ -123,7 +123,9 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          token: ${{ github.token }}
+          # Use PAT if available (for restricted repository permissions), otherwise use default token
+          # Note: RELEASE_TOKEN secret is optional - if not set, github.token will be used
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
           tag_name: ${{ steps.version.outputs.version }}
           name: Release ${{ steps.version.outputs.version }}
           body: |
