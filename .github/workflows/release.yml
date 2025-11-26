@@ -12,8 +12,8 @@ on:
         type: string
 
 jobs:
-  build:
-    name: Build Binaries
+  build-linux-windows:
+    name: Build Linux/Windows Binaries
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Required for creating releases
@@ -27,12 +27,6 @@ jobs:
           - goos: linux
             goarch: arm64
             binary_name: sha1-hulud-scanner-linux-arm64
-          - goos: darwin
-            goarch: amd64
-            binary_name: sha1-hulud-scanner-darwin-amd64
-          - goos: darwin
-            goarch: arm64
-            binary_name: sha1-hulud-scanner-darwin-arm64
           - goos: windows
             goarch: amd64
             binary_name: sha1-hulud-scanner-windows-amd64.exe
@@ -70,9 +64,62 @@ jobs:
           path: ${{ matrix.binary_name }}
           retention-days: 30
 
+  build-macos:
+    name: Build macOS Binaries
+    runs-on: macos-latest
+    permissions:
+      contents: write  # Required for creating releases
+    
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+            binary_name: sha1-hulud-scanner-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            binary_name: sha1-hulud-scanner-darwin-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history and tags for proper tag handling
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Get dependencies
+        run: go mod download
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          go build -ldflags="-s -w" -o ${{ matrix.binary_name }} scan_malware.go
+          chmod +x ${{ matrix.binary_name }}
+
+      - name: Code sign binary (ad-hoc)
+        run: |
+          # Ad-hoc signing helps with Gatekeeper warnings
+          # For full signing + notarization, an Apple Developer account ($99/year) is required
+          codesign --sign - --force --deep --timestamp --options runtime ${{ matrix.binary_name }}
+          codesign --verify --verbose ${{ matrix.binary_name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: ${{ matrix.binary_name }}
+          retention-days: 30
+
   release:
     name: Create Release
-    needs: build
+    needs: [build-linux-windows, build-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -147,12 +194,27 @@ jobs:
 
             ### Installation
 
+            **Linux:**
             ```bash
-            # Download and make executable (Linux/macOS)
             wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha1-hulud-scanner-linux-amd64
             chmod +x sha1-hulud-scanner-linux-amd64
             ./sha1-hulud-scanner-linux-amd64 -download
             ```
+
+            **macOS:**
+            ```bash
+            # Download binary
+            wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.version }}/sha1-hulud-scanner-darwin-arm64
+            chmod +x sha1-hulud-scanner-darwin-arm64
+            
+            # If you see a Gatekeeper warning, right-click the file and select "Open"
+            # Or remove the quarantine attribute:
+            xattr -d com.apple.quarantine sha1-hulud-scanner-darwin-arm64 2>/dev/null || true
+            
+            ./sha1-hulud-scanner-darwin-arm64 -download
+            ```
+            
+            > **Note:** macOS binaries are ad-hoc signed. For full Gatekeeper compliance, an Apple Developer account ($99/year) is required for code signing + notarization.
 
             ### Verify Checksums
 
